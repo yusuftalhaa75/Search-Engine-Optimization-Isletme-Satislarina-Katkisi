@@ -1,0 +1,38 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
+# --- Plot 1: Correlation Scatter Plot ---
+plt.figure(figsize=(10, 6))
+sns.regplot(x='Views', y='Daily_Change', data=df, scatter_kws={'alpha':0.5}, line_kws={'color':'red'})
+plt.title('Korelasyon Analizi: Görüntülenme vs. Üye Değişimi\n(Korelasyon Katsayısı: 0.27)', fontsize=14)
+plt.xlabel('Günlük Görüntülenme Sayısı')
+plt.ylabel('Günlük Net Üye Değişimi')
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.tight_layout()
+plt.savefig('correlation_scatter.png')
+
+# --- Plot 3: Monthly Conversion Trends ---
+df['Month'] = df['Date'].dt.to_period('M')
+monthly_funnel = df.groupby('Month')[['Reach', 'Profile_Visits', 'Daily_Change']].sum()
+monthly_funnel['CVR_Visit_to_Member'] = monthly_funnel['Daily_Change'] / monthly_funnel['Profile_Visits'] * 100
+
+plt.figure(figsize=(12, 6))
+# Convert Period index to string for plotting
+months = monthly_funnel.index.astype(str)
+plt.plot(months, monthly_funnel['CVR_Visit_to_Member'], marker='o', linestyle='-', linewidth=3, color='#e15759')
+
+plt.title('Aylık Dönüşüm Oranı Trendi (Profil Ziyaretçisinden Üyeye)', fontsize=14)
+plt.ylabel('Dönüşüm Oranı (%)', color='#e15759')
+plt.xlabel('Ay')
+plt.grid(True, linestyle='--', alpha=0.6)
+
+# Annotate points
+for i, txt in enumerate(monthly_funnel['CVR_Visit_to_Member']):
+    plt.annotate(f'%{txt:.2f}', (months[i], monthly_funnel['CVR_Visit_to_Member'].iloc[i]), 
+                 textcoords="offset points", xytext=(0,10), ha='center', fontsize=12, weight='bold')
+
+plt.tight_layout()
+plt.savefig('monthly_conversion_trend.png')

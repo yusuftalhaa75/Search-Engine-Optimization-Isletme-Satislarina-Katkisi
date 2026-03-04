@@ -1,0 +1,86 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import statsmodels.api as sm
+
+# 1. Load Daily Change Data
+daily_change_df = pd.read_csv('çıktı.csv')
+daily_change_df['Date'] = pd.to_datetime(daily_change_df['Date'])
+daily_change_df = daily_change_df.rename(columns={'Daily_Change': 'Net_Daily_Change'})
+
+# 2. Load Sales Data (GunlukSatisDurumu)
+sales_df = pd.read_csv('GunlukSatisDurumu4.12.2025.xlxs.xlsx - Sheet.csv')
+# The date column seems to be 'Üyelik Baş. Trh.' or we can infer from 'Satış Tarihi' rows.
+# 'Üyelik Baş. Trh.' is likely the start date, which usually equals sales date for new members.
+sales_df['Sales_Date'] = pd.to_datetime(sales_df['Üyelik Baş. Trh.'], errors='coerce')
+sales_df = sales_df.dropna(subset=['Sales_Date'])
+daily_sales = sales_df.groupby('Sales_Date').size().reset_index(name='Total_Daily_Sales')
+daily_sales = daily_sales.rename(columns={'Sales_Date': 'Date'})
+
+# 3. Load Views Data
+views_df = pd.read_csv('Olimpia_Görüntülenme_Veri_Seti.xlsx - Sayfa1.csv')
+views_df['TARİH'] = pd.to_datetime(views_df['TARİH'])
+views_df = views_df.rename(columns={'TARİH': 'Date', 'GÖRÜNTÜLENME': 'Views', 'PROFİL_ZİYARETİ': 'Profile_Visits'})
+
+# 4. Merge All
+# Master date range
+start_date = min(daily_change_df['Date'].min(), daily_sales['Date'].min(), views_df['Date'].min())
+end_date = max(daily_change_df['Date'].max(), daily_sales['Date'].max(), views_df['Date'].max())
+date_range = pd.DataFrame({'Date': pd.date_range(start=start_date, end=end_date)})
+
+df = date_range.merge(daily_change_df[['Date', 'Net_Daily_Change']], on='Date', how='left')
+df = df.merge(daily_sales, on='Date', how='left')
+df = df.merge(views_df[['Date', 'Views', 'Profile_Visits']], on='Date', how='left')
+
+# Fill NaNs with 0 for analysis (assuming no record means 0 activity)
+df_filled = df.fillna(0)
+
+# Filter out dates way in the future or past if any errors (e.g. 2026)
+df_filled = df_filled[(df_filled['Date'] >= '2025-09-01') & (df_filled['Date'] <= '2025-12-31')]
+
+# 5. Plotting
+fig, ax1 = plt.subplots(figsize=(14, 8))
+
+# Axis 1: Membership Metrics (Sales/Change)
+ax1.set_xlabel('Tarih')
+ax1.set_ylabel('Üye Sayısı (Günlük)', color='tab:blue')
+ax1.plot(df_filled['Date'], df_filled['Net_Daily_Change'], label='Net Üye Değişimi (Çıktı.csv)', color='tab:blue', linestyle='-', linewidth=2)
+ax1.plot(df_filled['Date'], df_filled['Total_Daily_Sales'], label='Toplam Satış (Günlük Satış Dosyası)', color='tab:cyan', linestyle='--', linewidth=2)
+ax1.tick_params(axis='y', labelcolor='tab:blue')
+ax1.legend(loc='upper left')
+ax1.grid(True, linestyle=':', alpha=0.6)
+
+# Axis 2: Interaction Metrics (Views/Visits)
+ax2 = ax1.twinx()
+ax2.set_ylabel('Etkileşim Sayısı (Görüntülenme/Ziyaret)', color='tab:red')
+ax2.plot(df_filled['Date'], df_filled['Views'], label='Görüntülenme', color='tab:red', alpha=0.5, linestyle='-')
+ax2.plot(df_filled['Date'], df_filled['Profile_Visits'], label='Profil Ziyareti', color='tab:orange', alpha=0.8, linestyle='-.')
+ax2.tick_params(axis='y', labelcolor='tab:red')
+ax2.legend(loc='upper right')
+
+plt.title('Günlük Üyelik Değişimi, Satışlar ve Etkileşim Verileri Karşılaştırması')
+plt.tight_layout()
+plt.savefig('combined_metrics_chart.png')
+
+# 6. ML Compatibility Analysis
+# Correlation Matrix
+corr_matrix = df_filled[['Net_Daily_Change', 'Total_Daily_Sales', 'Views', 'Profile_Visits']].corr()
+print("Korelasyon Matrisi:")
+print(corr_matrix)
+
+# Regression Analysis: Predicting Sales using Views and Visits
+# Assuming Sales is the target to capture "Effectiveness of Views"
+X = df_filled[['Views', 'Profile_Visits']]
+y = df_filled['Total_Daily_Sales']
+X = sm.add_constant(X)
+
+model = sm.OLS(y, X).fit()
+print("\nRegresyon Analizi Sonuçları (Hedef: Günlük Satış):")
+print(model.summary())
+
+# Also predict Net Change
+y_change = df_filled['Net_Daily_Change']
+model_change = sm.OLS(y_change, X).fit()
+print("\nRegresyon Analizi Sonuçları (Hedef: Net Üye Değişimi):")
+print(model_change.summary())

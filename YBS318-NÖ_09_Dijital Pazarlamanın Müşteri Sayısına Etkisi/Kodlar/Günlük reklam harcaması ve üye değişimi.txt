@@ -1,0 +1,72 @@
+import pandas as pd
+
+# Load the datasets
+views_df = pd.read_csv('Olimpia_Görüntülenme_Veri_Seti.xlsx - Sayfa1.csv')
+members_df = pd.read_csv('çıktı.csv')
+ads_df = pd.read_csv('Reklam_ödemeleri.xlsx - Sayfa1.csv')
+
+# Display head and info for each
+print("Views Data:")
+print(views_df.head())
+print(views_df.info())
+
+print("\nMembers Data:")
+print(members_df.head())
+print(members_df.info())
+
+print("\nAds Data:")
+print(ads_df.head())
+print(ads_df.info())
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Drop rows with NaN in Views (the first 4 days)
+df_clean = df.dropna(subset=['Views']).copy()
+
+# Create Post_Oct19 feature
+df_clean['Post_Oct19'] = (df_clean['Date'] >= '2025-10-19').astype(int)
+
+# Create rolling average for Ad Spend and Views (e.g., 3-day window) to smooth out daily noise
+df_clean['Ad_Spend_Rolling'] = df_clean['Ad_Spend'].rolling(window=3).mean()
+df_clean['Views_Rolling'] = df_clean['Views'].rolling(window=3).mean()
+
+# Plotting
+fig, ax1 = plt.subplots(figsize=(14, 7))
+
+# Plot Daily Change (Members)
+color = 'tab:blue'
+ax1.set_xlabel('Date')
+ax1.set_ylabel('Daily Member Change', color=color)
+ax1.plot(df_clean['Date'], df_clean['Daily_Change'], color=color, label='Daily Member Change')
+ax1.tick_params(axis='y', labelcolor=color)
+
+# Create a second y-axis for Ad Spend
+ax2 = ax1.twinx()
+color = 'tab:red'
+ax2.set_ylabel('Ad Spend (TL)', color=color)
+ax2.plot(df_clean['Date'], df_clean['Ad_Spend'], color=color, alpha=0.6, label='Ad Spend')
+ax2.tick_params(axis='y', labelcolor=color)
+
+# Mark Oct 19
+plt.axvline(pd.to_datetime('2025-10-19'), color='green', linestyle='--', label='Strategy Change (Oct 19)')
+
+plt.title('Daily Member Change vs Ad Spend')
+fig.tight_layout()
+plt.savefig('daily_change_vs_ad_spend.png')
+
+# Correlation Matrix
+corr_cols = ['Daily_Change', 'Active_Members', 'Views', 'Reach', 'Profile_Visits', 'Ad_Spend', 'Post_Oct19']
+corr_matrix = df_clean[corr_cols].corr()
+
+print("Correlation Matrix:")
+print(corr_matrix)
+
+# Compare averages Pre vs Post Oct 19
+pre_oct19 = df_clean[df_clean['Post_Oct19'] == 0]
+post_oct19 = df_clean[df_clean['Post_Oct19'] == 1]
+
+print("\nAverage Statistics Pre-Oct 19:")
+print(pre_oct19[['Daily_Change', 'Ad_Spend', 'Views']].mean())
+
+print("\nAverage Statistics Post-Oct 19:")
+print(post_oct19[['Daily_Change', 'Ad_Spend', 'Views']].mean())

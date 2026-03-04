@@ -1,0 +1,47 @@
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+
+
+plt.tight_layout()
+plt.savefig('segment_performance.png')
+
+# Detailed Timeline Plot
+fig2, ax3 = plt.subplots(figsize=(16, 7))
+
+# Plot Daily Change
+ax3.plot(df_analysis['Date'], df_analysis['Daily_Change'], color='blue', alpha=0.6, label='Günlük Üye Değişimi')
+ax3.scatter(df_analysis['Date'], df_analysis['Daily_Change'], color='blue', s=10)
+
+# Plot Ad Spend on secondary axis
+ax4 = ax3.twinx()
+ax4.plot(df_analysis['Date'], df_analysis['Ad_Spend'], color='red', alpha=0.3, label='Reklam Harcaması')
+ax4.fill_between(df_analysis['Date'], df_analysis['Ad_Spend'], color='red', alpha=0.1)
+
+# Highlight Regions
+regions = [
+    ('2025-10-01', '2025-10-18', 'Pre-Strategy', 'green', 0.05),
+    ('2025-10-19', '2025-11-10', 'Active', 'orange', 0.1),
+    ('2025-11-11', '2025-11-29', 'Exams/Break', 'gray', 0.2),
+    ('2025-11-30', '2025-12-04', 'New Campaign', 'blue', 0.1)
+]
+
+for start, end, label, color, alpha in regions:
+    # Convert string dates to datetime for matplotlib
+    start_dt = pd.to_datetime(start)
+    end_dt = pd.to_datetime(end)
+    ax3.axvspan(start_dt, end_dt, color=color, alpha=alpha)
+    # Add label at the top of the region
+    mid_point = start_dt + (end_dt - start_dt) / 2
+    ax3.text(mid_point, ax3.get_ylim()[1]*0.95, label, ha='center', fontsize=10, weight='bold', color='black', backgroundcolor='white')
+
+ax3.set_title('Zaman Çizelgesi: Sınavlar ve Kampanyaların Etkisi', fontsize=16)
+ax3.set_ylabel('Günlük Üye Değişimi')
+ax4.set_ylabel('Reklam Harcaması (TL)')
+
+# Combine legends
+lines, labels = ax3.get_legend_handles_labels()
+lines2, labels2 = ax4.get_legend_handles_labels()
+ax3.legend(lines + lines2, labels + labels2, loc='upper left')
+
+plt.tight_layout()
+plt.savefig('timeline_analysis.png')

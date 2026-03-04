@@ -1,0 +1,103 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import statsmodels.api as sm
+
+# 1. Load Data
+# Members Data (Daily Change & Active Members)
+members_df = pd.read_csv('çıktı.csv')
+members_df['Date'] = pd.to_datetime(members_df['Date'])
+
+# Views Data (Views, Profile Visits, Reach)
+views_df = pd.read_csv('Olimpia_Görüntülenme_Veri_Seti.xlsx - Sayfa1.csv')
+views_df['TARİH'] = pd.to_datetime(views_df['TARİH'])
+views_df = views_df.rename(columns={
+    'TARİH': 'Date',
+    'GÖRÜNTÜLENME': 'Views',
+    'PROFİL_ZİYARETİ': 'Profile_Visits',
+    'ERİŞİLEN_HESAP': 'Reach'
+})
+
+# 2. Merge Data
+# Use inner join to ensure we have data for all metrics for correlation analysis
+df = pd.merge(members_df, views_df[['Date', 'Views', 'Profile_Visits', 'Reach']], on='Date', how='inner')
+
+# Filter for the relevant period (Sept - Dec)
+df = df[(df['Date'] >= '2025-09-01') & (df['Date'] <= '2025-12-31')]
+
+# 3. Plotting
+fig, ax1 = plt.subplots(figsize=(16, 9))
+
+# Axis 1 (Left): Member Metrics (Active Members)
+# Note: Daily_Change is small (-5 to 10), Active_Members is 50-160.
+# Putting them on same axis might compress Daily_Change. 
+# Let's put Active Members on Left (Primary context).
+color_active = 'tab:blue'
+ax1.set_xlabel('Tarih')
+ax1.set_ylabel('Toplam Üye Sayısı (Active Members)', color=color_active, fontsize=12, fontweight='bold')
+line1 = ax1.plot(df['Date'], df['Active_Members'], label='Toplam Üye Sayısı', color=color_active, linewidth=3)
+ax1.tick_params(axis='y', labelcolor=color_active)
+ax1.grid(True, linestyle=':', alpha=0.6)
+
+# Axis 2 (Right): Interaction Metrics (Views, Reach) & Daily Change?
+# Reach and Views are huge (thousands). Profile Visits (hundreds).
+# Daily Change is very small.
+# Creating a secondary axis for the "Social Media" volume.
+ax2 = ax1.twinx()
+color_social = 'tab:red'
+ax2.set_ylabel('Erişim & Görüntülenme Sayısı', color=color_social, fontsize=12, fontweight='bold')
+line2 = ax2.plot(df['Date'], df['Reach'], label='Erişim (Reach)', color='tab:orange', linestyle='--', alpha=0.7)
+line3 = ax2.plot(df['Date'], df['Views'], label='Görüntülenme (Views)', color='tab:red', linestyle='-', alpha=0.5)
+ax2.tick_params(axis='y', labelcolor=color_social)
+
+# To visualize Daily Change and Profile Visits clearly, they might need scaling or a 3rd axis (parasite axis).
+# Alternatively, I can normalize them or just plot them on the Right axis if the scale allows.
+# Reach ~ 100k. Profile Visit ~ 100. They are too different.
+# I will use a log scale for the Right Axis to fit Views(10k), Reach(10k), and ProfileVisits(100).
+ax2.set_yscale('log')
+line4 = ax2.plot(df['Date'], df['Profile_Visits'], label='Profil Ziyareti', color='tab:green', linestyle='-.', linewidth=2)
+
+# Daily Change is linear and can be negative. Log scale won't work for negative values.
+# So I'll keep Daily Change on the Left Axis but maybe strictly referring to it in legend?
+# Or just plot it on Left Axis. Since Active Members is ~100 and Daily Change is ~5, 
+# the Daily Change line will be very low. 
+# Let's put Daily Change on a separate scale or simply omit it from the graphic if it makes it unreadable, 
+# BUT user asked for it. 
+# Solution: Use `Active_Members` (Left) and `Reach/Views/Visits` (Right Log).
+# I'll add `Daily_Change` to the Left axis but it will appear small.
+line5 = ax1.plot(df['Date'], df['Daily_Change'], label='Günlük Üye Değişimi', color='navy', linestyle=':', linewidth=2)
+
+# Combine legends
+lines = line1 + line5 + line2 + line3 + line4
+labels = [l.get_label() for l in lines]
+ax1.legend(lines, labels, loc='upper left', bbox_to_anchor=(0, 1), fontsize=10, frameon=True)
+
+plt.title('Toplam Üye, Günlük Değişim ve Sosyal Medya Etkileşimleri (Logaritmik Sosyal Medya Ekseni)', fontsize=16)
+plt.tight_layout()
+plt.savefig('comprehensive_chart.png')
+
+# 4. Correlation Analysis
+# We check correlation of Member Metrics vs Social Metrics
+corr_cols = ['Active_Members', 'Daily_Change', 'Reach', 'Views', 'Profile_Visits']
+corr_matrix = df[corr_cols].corr()
+
+print("Korelasyon Matrisi:")
+print(corr_matrix)
+
+# 5. Regression Analysis (ML Model Compatibility)
+# Can we predict 'Daily_Change' (Growth) using Social Metrics?
+X = df[['Reach', 'Views', 'Profile_Visits']]
+y = df['Daily_Change']
+X = sm.add_constant(X)
+
+model = sm.OLS(y, X).fit()
+print("\nMakine Öğrenmesi Model Sonuçları (Hedef: Günlük Üye Değişimi):")
+print(model.summary())
+
+# Can we predict 'Active_Members' (Total Stock) using Social Metrics? 
+# (Note: This is time-series correlated, might have high R2 but spurious causality)
+y_total = df['Active_Members']
+model_total = sm.OLS(y_total, X).fit()
+print("\nMakine Öğrenmesi Model Sonuçları (Hedef: Toplam Üye Sayısı):")
+print(model_total.summary())
